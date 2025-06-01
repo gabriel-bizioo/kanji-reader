@@ -20,10 +20,19 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.bizio.KanjiReaderTest"
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "a5e36663-3d04-45f7-8a63-ec9faf49179c"
+      }
+    },
+    "plugins": [
+      "expo-sqlite"
+    ]
   }
 }
