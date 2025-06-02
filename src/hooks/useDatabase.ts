@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { asyncKanjiService } from '../services/AsyncKanjiService';
+import { kanjiDatabaseService } from '../services/KanjiDatabaseService';
 
 interface DatabaseState {
   isLoading: boolean;
@@ -28,11 +28,11 @@ export const useDatabase = () => {
     try {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
       
-      console.log('Initializing AsyncStorage kanji database...');
-      await asyncKanjiService.initialize();
+      console.log('Initializing SQLite kanji database...');
+      await kanjiDatabaseService.initialize();
       
       console.log('Getting database stats...');
-      const stats = await asyncKanjiService.getDatabaseStats();
+      const stats = await kanjiDatabaseService.getDatabaseStats();
       
       setState({
         isLoading: false,
@@ -45,9 +45,9 @@ export const useDatabase = () => {
         },
       });
       
-      console.log('AsyncStorage database ready:', stats);
+      console.log('SQLite database ready:', stats);
     } catch (error) {
-      console.error('AsyncStorage database initialization failed:', error);
+      console.error('SQLite database initialization failed:', error);
       setState({
         isLoading: false,
         isReady: false,

@@ -8,11 +8,22 @@ export type RootStackParamList = {
     bookTitle?: string;
     lastPage?: number;
   };
-  KanjiTest: undefined;
+  ImageAnalysis: {
+    imageUri: string;
+    imageTitle: string;
+  };
+  KanjiExplorer: undefined;
+  KanjiDetail: {
+    character: string;
+    fromReading?: boolean; // true if navigated from reading a book
+  };
 };
 
 export type HomeScreenProps = StackScreenProps<RootStackParamList, 'Home'>;
 export type ReadingScreenProps = StackScreenProps<RootStackParamList, 'Reading'>;
+export type KanjiExplorerScreenProps = StackScreenProps<RootStackParamList, 'KanjiExplorer'>;
+export type KanjiDetailScreenProps = StackScreenProps<RootStackParamList, 'KanjiDetail'>;
+export type ImageAnalysisScreenProps = StackScreenProps<RootStackParamList, 'ImageAnalysis'>;
 
 declare global {
   namespace ReactNavigation {

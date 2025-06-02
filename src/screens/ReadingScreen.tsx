@@ -1,4 +1,3 @@
-// src/screens/ReadingScreen.tsx - Safe Incremental Update
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -13,8 +12,9 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import type { ReadingScreenProps } from '../types/navigation';
-import { darkTheme } from '../styles/theme';
 import ExpoPDFViewer from '../components/ExpoPDFViewer';
+import { darkTheme } from '../styles/theme';
+import { fileStorageService, ReadingProgress } from '../services/FileStorageService';
 
 const { height: screenHeight } = Dimensions.get('window');
 
@@ -24,7 +24,52 @@ const ReadingScreen: React.FC<ReadingScreenProps> = ({ navigation, route }) => {
   const [showKanjiAnalysis, setShowKanjiAnalysis] = useState(false);
   const [currentPage, setCurrentPage] = useState(lastPage || 1);
   const [totalPages, setTotalPages] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [readingStartTime, setReadingStartTime] = useState<Date>(new Date());
+
+  // Load saved reading progress when screen focuses
+  useFocusEffect(
+    useCallback(() => {
+      loadReadingProgress();
+    }, [bookId])
+  );
+
+  const loadReadingProgress = async () => {
+    if (!bookId) return;
+    
+    try {
+      const progress = await fileStorageService.getReadingProgress(bookId);
+      if (progress && progress.currentPage > 0) {
+        console.log(`Loaded saved progress: page ${progress.currentPage} of ${progress.totalPages}`);
+        setCurrentPage(progress.currentPage);
+        setTotalPages(progress.totalPages);
+      }
+    } catch (error) {
+      console.error('Error loading reading progress:', error);
+    }
+  };
+
+  const saveReadingProgress = async (page: number, total: number) => {
+    if (!bookId || page <= 0 || total <= 0) return;
+    
+    try {
+      const now = new Date();
+      const readingTimeSeconds = Math.floor((now.getTime() - readingStartTime.getTime()) / 1000);
+      
+      const progress: ReadingProgress = {
+        bookId,
+        currentPage: page,
+        totalPages: total,
+        lastReadAt: now,
+        readingTimeSeconds,
+      };
+      
+      await fileStorageService.saveReadingProgress(progress);
+      console.log(`Saved progress: page ${page} of ${total}`);
+    } catch (error) {
+      console.error('Error saving reading progress:', error);
+    }
+  };
 
   // Set screen title
   useEffect(() => {
@@ -42,23 +87,47 @@ const ReadingScreen: React.FC<ReadingScreenProps> = ({ navigation, route }) => {
   };
 
   const handlePageChanged = (page: number, total: number) => {
+    console.log(`Page changed: ${page}/${total}`);
     setCurrentPage(page);
     setTotalPages(total);
-    console.log(`Page changed: ${page}/${total}`);
+    
+    // Save progress immediately when page changes
+    saveReadingProgress(page, total);
   };
 
   const handleLoadComplete = (total: number) => {
+    console.log(`PDF loaded: ${total} pages`);
     setTotalPages(total);
     setLoading(false);
-    console.log(`PDF loaded: ${total} pages`);
+    
+    // Save initial progress
+    saveReadingProgress(currentPage, total);
   };
 
   const handlePDFError = (error: Error) => {
     console.error('PDF Error:', error);
-    Alert.alert('PDF Error', 'Failed to load PDF. Please check the file.');
+    setLoading(false);
+    Alert.alert(
+      'PDF Error', 
+      `Failed to load PDF. Please check the file.\n\nError: ${error.message}`,
+      [
+        { text: 'Go Back', onPress: () => navigation.goBack() },
+        { text: 'Retry', onPress: () => setLoading(true) },
+      ]
+    );
+  };
+
+  const handleTextExtracted = (text: string, pageNumber: number) => {
+    console.log(`Text extracted from page ${pageNumber}: ${text.length} characters`);
+    // TODO: Process text for kanji analysis
+    // This is where we'll implement the kanji identification in the next phase
   };
 
   const handleBackPress = () => {
+    // Save final progress before leaving
+    if (currentPage > 0 && totalPages > 0) {
+      saveReadingProgress(currentPage, totalPages);
+    }
     navigation.goBack();
   };
 
@@ -107,6 +176,7 @@ const ReadingScreen: React.FC<ReadingScreenProps> = ({ navigation, route }) => {
             onPageChanged={handlePageChanged}
             onLoadComplete={handleLoadComplete}
             onError={handlePDFError}
+            onTextExtracted={handleTextExtracted}
             style={styles.pdfViewer}
             currentPage={currentPage}
           />
@@ -176,15 +246,16 @@ const ReadingScreen: React.FC<ReadingScreenProps> = ({ navigation, route }) => {
               </View>
             </View>
 
-            {/* Implementation Status */}
+            {/* Development Status */}
             <View style={styles.featuresSection}>
-              <Text style={styles.featuresTitle}>Week 2 Status</Text>
+              <Text style={styles.featuresTitle}>Development Status</Text>
               <View style={styles.features}>
-                <Text style={styles.featureText}>✅ PDF viewer working</Text>
-                <Text style={styles.featureText}>✅ Page navigation active</Text>
-                <Text style={styles.featureText}>✅ File import complete</Text>
-                <Text style={styles.featureText}>⏳ Text extraction (Week 3)</Text>
-                <Text style={styles.featureText}>⏳ Kanji analysis (Week 4)</Text>
+                <Text style={styles.featureText}>✅ PDF viewer (WebView + PDF.js)</Text>
+                <Text style={styles.featureText}>✅ Page navigation & controls</Text>
+                <Text style={styles.featureText}>✅ Reading progress persistence</Text>
+                <Text style={styles.featureText}>✅ Text extraction ready</Text>
+                <Text style={styles.featureText}>⏳ Kanji identification (next)</Text>
+                <Text style={styles.featureText}>⏳ Knowledge bank integration</Text>
               </View>
             </View>
             

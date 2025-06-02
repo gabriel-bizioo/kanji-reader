@@ -9,15 +9,16 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { asyncKanjiService, KanjiEntry } from '../services/AsyncKanjiService';
+import { kanjiDatabaseService, KanjiEntry } from '../services/KanjiDatabaseService';
 import { darkTheme } from '../styles/theme';
+import type { KanjiExplorerScreenProps } from '../types/navigation';
 
-const KanjiTestScreen: React.FC = () => {
+const KanjiExplorerScreen: React.FC<KanjiExplorerScreenProps> = ({ navigation }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<KanjiEntry[]>([]);
-  const [selectedKanji, setSelectedKanji] = useState<KanjiEntry | null>(null);
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<any>(null);
+  const [filterType, setFilterType] = useState<'all' | 'jlpt' | 'frequency'>('all');
 
   useEffect(() => {
     loadInitialData();
@@ -25,22 +26,32 @@ const KanjiTestScreen: React.FC = () => {
 
   const loadInitialData = async () => {
     try {
-      console.log('Loading initial data...');
+      console.log('Loading initial kanji data...');
 
-      await asyncKanjiService.initialize();
+      // Check if database is ready
+      if (!kanjiDatabaseService) {
+        throw new Error('Kanji database service not available');
+      }
+
       // Get database stats
-      const dbStats = await asyncKanjiService.getDatabaseStats();
+      const dbStats = await kanjiDatabaseService.getDatabaseStats();
       console.log('Database stats loaded:', dbStats);
       setStats(dbStats);
 
-      // Load first 10 kanji
-      const result = await asyncKanjiService.searchKanji({ limit: 10 });
-      console.log('Search results: ')
-      setSearchResults(result.kanji);
+      // Load ALL kanji by default (not just 20)
+      const result = await kanjiDatabaseService.getAllKanji();
+      console.log('All kanji loaded:', result.length);
+      setSearchResults(result);
 
     } catch (error) {
       console.error('Error loading initial data:', error);
-      Alert.alert('Error', 'Failed to load kanji data: ' + error.message);
+      Alert.alert(
+        'Database Error', 
+        'Failed to load kanji data. Please make sure the database is properly initialized.\n\nError: ' + (error as Error).message,
+        [
+          { text: 'OK', onPress: () => navigation.goBack() }
+        ]
+      );
     }
   };
 
@@ -52,11 +63,12 @@ const KanjiTestScreen: React.FC = () => {
 
     setLoading(true);
     try {
-      const result = await asyncKanjiService.searchKanji({
+      const result = await kanjiDatabaseService.searchKanji({
         query: searchQuery,
-        limit: 20,
+        limit: 50,
       });
       setSearchResults(result.kanji);
+      console.log(`Search for "${searchQuery}" found ${result.kanji.length} results`);
     } catch (error) {
       console.error('Search error:', error);
       Alert.alert('Error', 'Search failed');
@@ -65,20 +77,19 @@ const KanjiTestScreen: React.FC = () => {
     }
   };
 
-  const handleKanjiSelect = async (character: string) => {
-    try {
-      const kanji = await asyncKanjiService.getKanji(character);
-      setSelectedKanji(kanji);
-    } catch (error) {
-      console.error('Error getting kanji details:', error);
-      Alert.alert('Error', 'Failed to load kanji details');
-    }
+  const handleKanjiSelect = (character: string) => {
+    // Navigate to dedicated KanjiDetail screen
+    // fromReading = false since this is from explorer, not reading a book
+    navigation.navigate('KanjiDetail', { 
+      character, 
+      fromReading: false 
+    });
   };
 
   const testSpecificKanji = async () => {
-    const testCharacters = ['日', '本', '人', '学', '語'];
+    const testCharacters = ['日', '本', '人', '学', '語', '今', '時', '見', '行', '来'];
     try {
-      const kanji = await asyncKanjiService.getMultipleKanji(testCharacters);
+      const kanji = await kanjiDatabaseService.getMultipleKanji(testCharacters);
       setSearchResults(kanji);
       Alert.alert('Test Complete', `Found ${kanji.length} of ${testCharacters.length} test kanji`);
     } catch (error) {
@@ -87,15 +98,60 @@ const KanjiTestScreen: React.FC = () => {
     }
   };
 
+  const filterByJLPT = async (level: number) => {
+    setLoading(true);
+    try {
+      const kanji = await kanjiDatabaseService.getKanjiByJLPTLevel(level);
+      setSearchResults(kanji);
+      setFilterType('jlpt');
+      console.log(`JLPT N${level} filter: ${kanji.length} kanji`);
+    } catch (error) {
+      console.error('JLPT filter error:', error);
+      Alert.alert('Error', 'Filter failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filterByFrequency = async (frequency: string) => {
+    setLoading(true);
+    try {
+      const kanji = await kanjiDatabaseService.getKanjiByFrequency(frequency);
+      setSearchResults(kanji);
+      setFilterType('frequency');
+      console.log(`Frequency "${frequency}" filter: ${kanji.length} kanji`);
+    } catch (error) {
+      console.error('Frequency filter error:', error);
+      Alert.alert('Error', 'Filter failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const showAllKanji = async () => {
+    setLoading(true);
+    try {
+      const kanji = await kanjiDatabaseService.getAllKanji();
+      setSearchResults(kanji);
+      setFilterType('all');
+      console.log(`All kanji loaded: ${kanji.length}`);
+    } catch (error) {
+      console.error('Error loading all kanji:', error);
+      Alert.alert('Error', 'Failed to load all kanji');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Database Stats */}
       {stats && (
         <View style={styles.statsContainer}>
-          <Text style={styles.statsTitle}>Database Statistics</Text>
-          <Text style={styles.statsText}>Kanji: {stats.totalKanji}</Text>
-          <Text style={styles.statsText}>Radicals: {stats.totalRadicals}</Text>
+          <Text style={styles.statsTitle}>Kanji Knowledge Bank</Text>
+          <Text style={styles.statsText}>Total Kanji: {stats.totalKanji}</Text>
           <Text style={styles.statsText}>Version: {stats.databaseVersion}</Text>
+          <Text style={styles.statsText}>Storage: {stats.size}</Text>
         </View>
       )}
 
@@ -114,109 +170,76 @@ const KanjiTestScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Test Button */}
-      <TouchableOpacity style={styles.testButton} onPress={testSpecificKanji}>
-        <Text style={styles.testButtonText}>Test Core Kanji (日本人学語)</Text>
-      </TouchableOpacity>
+      {/* Filter Buttons */}
+      <View style={styles.filterContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <TouchableOpacity style={styles.filterButton} onPress={showAllKanji}>
+            <Text style={styles.filterButtonText}>All</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.filterButton} onPress={() => filterByJLPT(5)}>
+            <Text style={styles.filterButtonText}>JLPT N5</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.filterButton} onPress={() => filterByFrequency('very common')}>
+            <Text style={styles.filterButtonText}>Very Common</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.filterButton} onPress={() => filterByFrequency('common')}>
+            <Text style={styles.filterButtonText}>Common</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.testButton} onPress={testSpecificKanji}>
+            <Text style={styles.testButtonText}>Test Core Kanji</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </View>
 
       {/* Loading */}
       {loading && (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="small" color={darkTheme.colors.primary} />
-          <Text style={styles.loadingText}>Searching...</Text>
+          <Text style={styles.loadingText}>Loading kanji...</Text>
         </View>
       )}
 
       {/* Search Results */}
       <View style={styles.resultsContainer}>
         <Text style={styles.resultsTitle}>
-          Results ({searchResults.length})
+          Kanji ({searchResults.length})
         </Text>
         
         <View style={styles.kanjiGrid}>
           {searchResults.map((kanji) => (
             <TouchableOpacity
               key={kanji.id}
-              style={styles.kanjiItem}
+              style={[
+                styles.kanjiItem,
+                kanji.timesSeen && kanji.timesSeen > 0 && styles.kanjiItemSeen
+              ]}
               onPress={() => handleKanjiSelect(kanji.character)}
             >
               <Text style={styles.kanjiCharacter}>{kanji.character}</Text>
               <Text style={styles.kanjiMeaning} numberOfLines={1}>
                 {kanji.meanings[0]}
               </Text>
-              <Text style={styles.kanjiGrade}>
-                {kanji.grade ? `G${kanji.grade}` : 'N/A'}
-              </Text>
+              <View style={styles.kanjiMeta}>
+                <Text style={styles.kanjiStroke}>
+                  {kanji.strokeCount}画
+                </Text>
+                {kanji.timesSeen !== undefined && kanji.timesSeen > 0 && (
+                  <Text style={styles.kanjiTimesSeen}>
+                    見た: {kanji.timesSeen}
+                  </Text>
+                )}
+              </View>
+              {kanji.jlptLevel && (
+                <Text style={styles.kanjiJlpt}>N{kanji.jlptLevel}</Text>
+              )}
             </TouchableOpacity>
           ))}
         </View>
       </View>
-
-      {/* Selected Kanji Details */}
-      {selectedKanji && (
-        <View style={styles.detailsContainer}>
-          <Text style={styles.detailsTitle}>Kanji Details</Text>
-          
-          <View style={styles.detailsHeader}>
-            <Text style={styles.detailsCharacter}>{selectedKanji.character}</Text>
-            <View style={styles.detailsInfo}>
-              <Text style={styles.detailsStroke}>
-                {selectedKanji.strokeCount} strokes
-              </Text>
-              {selectedKanji.grade && (
-                <Text style={styles.detailsGrade}>Grade {selectedKanji.grade}</Text>
-              )}
-              {selectedKanji.jlptLevel && (
-                <Text style={styles.detailsJlpt}>JLPT N{selectedKanji.jlptLevel}</Text>
-              )}
-            </View>
-          </View>
-
-          <View style={styles.detailsSection}>
-            <Text style={styles.detailsSectionTitle}>Meanings</Text>
-            <Text style={styles.detailsSectionText}>
-              {selectedKanji.meanings.join(', ')}
-            </Text>
-          </View>
-
-          <View style={styles.detailsSection}>
-            <Text style={styles.detailsSectionTitle}>On Readings</Text>
-            <Text style={styles.detailsSectionText}>
-              {selectedKanji.onReadings.join(', ')}
-            </Text>
-          </View>
-
-          <View style={styles.detailsSection}>
-            <Text style={styles.detailsSectionTitle}>Kun Readings</Text>
-            <Text style={styles.detailsSectionText}>
-              {selectedKanji.kunReadings.join(', ')}
-            </Text>
-          </View>
-
-          {selectedKanji.rtkStory && (
-            <View style={styles.detailsSection}>
-              <Text style={styles.detailsSectionTitle}>RTK Story</Text>
-              <Text style={styles.detailsSectionText}>
-                {selectedKanji.rtkStory}
-              </Text>
-            </View>
-          )}
-
-          <View style={styles.detailsSection}>
-            <Text style={styles.detailsSectionTitle}>Examples</Text>
-            <Text style={styles.detailsSectionText}>
-              {selectedKanji.examples.join(', ')}
-            </Text>
-          </View>
-
-          <TouchableOpacity
-            style={styles.closeButton}
-            onPress={() => setSelectedKanji(null)}
-          >
-            <Text style={styles.closeButtonText}>Close</Text>
-          </TouchableOpacity>
-        </View>
-      )}
     </ScrollView>
   );
 };
@@ -251,7 +274,7 @@ const styles = StyleSheet.create({
   // Search
   searchContainer: {
     flexDirection: 'row',
-    marginBottom: darkTheme.spacing.lg,
+    marginBottom: darkTheme.spacing.md,
   },
   searchInput: {
     flex: 1,
@@ -271,18 +294,32 @@ const styles = StyleSheet.create({
     ...darkTheme.typography.button,
     color: darkTheme.colors.text,
   },
+
+  // Filters
+  filterContainer: {
+    marginBottom: darkTheme.spacing.lg,
+  },
+  filterButton: {
+    backgroundColor: darkTheme.colors.surface,
+    borderRadius: darkTheme.borderRadius.md,
+    padding: darkTheme.spacing.sm,
+    marginRight: darkTheme.spacing.sm,
+  },
+  filterButtonText: {
+    ...darkTheme.typography.bodySmall,
+    color: darkTheme.colors.text,
+  },
   
   // Test Button
   testButton: {
     backgroundColor: darkTheme.colors.accent,
     borderRadius: darkTheme.borderRadius.md,
-    padding: darkTheme.spacing.md,
-    marginBottom: darkTheme.spacing.lg,
+    padding: darkTheme.spacing.sm,
+    marginRight: darkTheme.spacing.sm,
   },
   testButtonText: {
-    ...darkTheme.typography.button,
+    ...darkTheme.typography.bodySmall,
     color: darkTheme.colors.text,
-    textAlign: 'center',
   },
   
   // Loading
@@ -316,9 +353,13 @@ const styles = StyleSheet.create({
     backgroundColor: darkTheme.colors.surface,
     borderRadius: darkTheme.borderRadius.md,
     padding: darkTheme.spacing.md,
-    width: '30%',
+    width: '48%',
     marginBottom: darkTheme.spacing.md,
     alignItems: 'center',
+  },
+  kanjiItemSeen: {
+    borderWidth: 2,
+    borderColor: darkTheme.colors.primary,
   },
   kanjiCharacter: {
     ...darkTheme.typography.kanjiMedium,
@@ -331,9 +372,25 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: darkTheme.spacing.xs,
   },
-  kanjiGrade: {
+  kanjiMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginBottom: darkTheme.spacing.xs,
+  },
+  kanjiStroke: {
+    ...darkTheme.typography.caption,
+    color: darkTheme.colors.textTertiary,
+    fontSize: 10,
+  },
+  kanjiTimesSeen: {
     ...darkTheme.typography.caption,
     color: darkTheme.colors.primary,
+    fontSize: 10,
+  },
+  kanjiJlpt: {
+    ...darkTheme.typography.caption,
+    color: darkTheme.colors.accent,
     fontSize: 10,
   },
   
@@ -367,13 +424,18 @@ const styles = StyleSheet.create({
     ...darkTheme.typography.body,
     color: darkTheme.colors.textSecondary,
   },
-  detailsGrade: {
-    ...darkTheme.typography.bodySmall,
-    color: darkTheme.colors.primary,
-  },
   detailsJlpt: {
     ...darkTheme.typography.bodySmall,
     color: darkTheme.colors.accent,
+  },
+  detailsFrequency: {
+    ...darkTheme.typography.bodySmall,
+    color: darkTheme.colors.textSecondary,
+  },
+  detailsTimesSeen: {
+    ...darkTheme.typography.bodySmall,
+    color: darkTheme.colors.primary,
+    fontWeight: '600',
   },
   detailsSection: {
     marginBottom: darkTheme.spacing.lg,
@@ -401,4 +463,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default KanjiTestScreen;
+export default KanjiExplorerScreen;

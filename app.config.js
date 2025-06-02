@@ -1,4 +1,6 @@
-{
+import 'dotenv/config';
+
+export default {
   "expo": {
     "name": "KanjiReaderTest",
     "slug": "KanjiReaderTest",
@@ -27,6 +29,7 @@
       "favicon": "./assets/favicon.png"
     },
     "extra": {
+      "googleCloudVisionApiKey": process.env.GOOGLE_CLOUD_VISION_API_KEY,
       "eas": {
         "projectId": "a5e36663-3d04-45f7-8a63-ec9faf49179c"
       }

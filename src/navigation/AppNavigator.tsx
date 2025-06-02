@@ -1,11 +1,13 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import { StatusBar } from 'react-native';
+import { StatusBar, TouchableOpacity, Text } from 'react-native';
 import type { RootStackParamList } from '@/types/navigation';
 import HomeScreen from '../screens/HomeScreen';
-import KanjiTestScreen from '../screens/KanjiTestScreen'
+import KanjiExplorerScreen from '../screens/KanjiExplorerScreen';
+import KanjiDetailScreen from '../screens/KanjiDetailScreen';
 import ReadingScreen from '../screens/ReadingScreen';
+import ImageAnalysisScreen from '../screens/ImageAnalysisScreen';
 import { darkTheme } from '../styles/theme';
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -59,11 +61,59 @@ const AppNavigator: React.FC = () => {
             headerShown: false, // Full screen reading experience
           })}
         />
-
         <Stack.Screen
-            name="KanjiTest"
-            component={KanjiTestScreen}
-            options={{ title: 'Kanji Database Test' }}
+          name="KanjiExplorer"
+          component={KanjiExplorerScreen}
+          options={{
+            title: 'Kanji Explorer',
+            headerStyle: {
+              backgroundColor: darkTheme.colors.surface,
+              elevation: 2,
+              shadowOpacity: 0.1,
+            },
+            headerRight: () => (
+              <TouchableOpacity
+                style={{
+                  marginRight: 16,
+                  padding: 8,
+                  borderRadius: 8,
+                  backgroundColor: darkTheme.colors.primary,
+                }}
+                onPress={() => {
+                  // Future: Add quick actions like "Show only new kanji"
+                }}
+              >
+                <Text style={{
+                  color: darkTheme.colors.text,
+                  fontSize: 12,
+                  fontWeight: '600'
+                }}>
+                  学
+                </Text>
+              </TouchableOpacity>
+            ),
+          }}
+        />
+        <Stack.Screen
+          name="KanjiDetail"
+          component={KanjiDetailScreen}
+          options={({ route }) => ({
+            title: `Kanji: ${route.params?.character || ''}`,
+            headerStyle: {
+              backgroundColor: darkTheme.colors.surface,
+              elevation: 2,
+              shadowOpacity: 0.1,
+            },
+          })}
+        />
+        <Stack.Screen 
+            name="ImageAnalysis" 
+            component={ImageAnalysisScreen} 
+            options={{ 
+                title: 'Image Analysis',
+                headerStyle: { backgroundColor: darkTheme.colors.surface },
+                headerTintColor: darkTheme.colors.text,
+            }}
         />
       </Stack.Navigator>
     </NavigationContainer>
